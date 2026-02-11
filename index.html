@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Light Maze</title>
+<title>Neon Dodger</title>
 <style>
     body {
         margin: 0;
@@ -13,148 +13,123 @@
         align-items: center;
         height: 100vh;
         font-family: 'Courier New', monospace;
-        color: #fff;
+        overflow: hidden;
+        color: #0ff;
     }
     canvas {
         background: #111;
-        border: 2px solid #fff;
         border-radius: 10px;
     }
-    #info {
+    #score {
         position: absolute;
         top: 10px;
-        text-align: center;
-        width: 100%;
         color: #0ff;
+        font-size: 24px;
     }
 </style>
 </head>
 <body>
-<div id="info">Click mirrors to rotate and guide the beam to the goal!</div>
-<canvas id="gameCanvas" width="600" height="600"></canvas>
+<div id="score">Score: 0</div>
+<canvas id="gameCanvas" width="400" height="600"></canvas>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-const gridSize = 6; // 6x6 grid
-const cellSize = canvas.width / gridSize;
+let player = {x: 180, y: 500, width: 40, height: 40, speed: 5};
+let keys = {};
+let obstacles = [];
+let spawnTimer = 0;
+let score = 0;
+let gameOver = false;
 
-// Game objects
-let mirrors = [
-    {x: 2, y: 2, dir: 0}, // dir = 0 ( / ), 1 = \ 
-    {x: 4, y: 3, dir: 1},
-];
-let goal = {x: 5, y: 5};
-let beamPath = [];
+// Event listeners
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
 
-function drawGrid() {
-    ctx.strokeStyle = '#333';
-    for (let i = 0; i <= gridSize; i++) {
-        ctx.beginPath();
-        ctx.moveTo(i*cellSize, 0);
-        ctx.lineTo(i*cellSize, canvas.height);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, i*cellSize);
-        ctx.lineTo(canvas.width, i*cellSize);
-        ctx.stroke();
-    }
+function spawnObstacle() {
+    let width = Math.random() * 60 + 30;
+    let x = Math.random() * (canvas.width - width);
+    let speed = Math.random() * 3 + 2;
+    obstacles.push({x, y: -50, width, height: 20, speed});
 }
 
-function drawMirrors() {
-    mirrors.forEach(m => {
-        ctx.save();
-        ctx.translate(m.x*cellSize + cellSize/2, m.y*cellSize + cellSize/2);
-        ctx.rotate(m.dir * Math.PI/2);
-        ctx.strokeStyle = '#0ff';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(-cellSize/2 + 10, -cellSize/2 + 10);
-        ctx.lineTo(cellSize/2 - 10, cellSize/2 - 10);
-        ctx.stroke();
-        ctx.restore();
-    });
+function movePlayer() {
+    if (keys['ArrowLeft'] || keys['a']) player.x -= player.speed;
+    if (keys['ArrowRight'] || keys['d']) player.x += player.speed;
+    // Boundaries
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
 }
 
-function drawGoal() {
-    ctx.fillStyle = '#ff0';
-    ctx.beginPath();
-    ctx.arc(goal.x*cellSize + cellSize/2, goal.y*cellSize + cellSize/2, cellSize/3, 0, Math.PI*2);
-    ctx.fill();
+function moveObstacles() {
+    obstacles.forEach(o => o.y += o.speed);
+    obstacles = obstacles.filter(o => o.y < canvas.height + 50);
 }
 
-function castBeam() {
-    beamPath = [];
-    let x = 0.5;
-    let y = 0.5;
-    let dx = 1;
-    let dy = 0;
-    let maxSteps = 100;
-    
-    for (let i = 0; i < maxSteps; i++) {
-        beamPath.push({x, y});
-        
-        let gridX = Math.floor(x);
-        let gridY = Math.floor(y);
-        
-        if (gridX === goal.x && gridY === goal.y) break;
-        
-        let mirror = mirrors.find(m => m.x === gridX && m.y === gridY);
-        if (mirror) {
-            if (mirror.dir === 0) {
-                // / mirror
-                [dx, dy] = [-dy, -dx];
-            } else {
-                // \ mirror
-                [dx, dy] = [dy, dx];
-            }
+function checkCollision() {
+    for (let o of obstacles) {
+        if (player.x < o.x + o.width &&
+            player.x + player.width > o.x &&
+            player.y < o.y + o.height &&
+            player.y + player.height > o.y) {
+            gameOver = true;
         }
-        
-        x += dx*0.1;
-        y += dy*0.1;
-        
-        if (x < 0 || y < 0 || x > gridSize || y > gridSize) break;
     }
 }
 
-function drawBeam() {
-    ctx.strokeStyle = '#0f0';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    beamPath.forEach((p, i) => {
-        let px = p.x * cellSize;
-        let py = p.y * cellSize;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
+function drawPlayer() {
+    ctx.fillStyle = '#0ff';
+    ctx.shadowColor = '#0ff';
+    ctx.shadowBlur = 20;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    ctx.shadowBlur = 0;
+}
+
+function drawObstacles() {
+    obstacles.forEach(o => {
+        ctx.fillStyle = '#f0f';
+        ctx.shadowColor = '#f0f';
+        ctx.shadowBlur = 15;
+        ctx.fillRect(o.x, o.y, o.width, o.height);
+        ctx.shadowBlur = 0;
     });
-    ctx.stroke();
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawGrid();
-    drawGoal();
-    drawMirrors();
-    castBeam();
-    drawBeam();
+    drawPlayer();
+    drawObstacles();
 }
 
-canvas.addEventListener('click', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const gridX = Math.floor(mx / cellSize);
-    const gridY = Math.floor(my / cellSize);
-    
-    const mirror = mirrors.find(m => m.x === gridX && m.y === gridY);
-    if (mirror) {
-        mirror.dir = (mirror.dir + 1) % 2;
-        draw();
-    }
-});
+function updateScore() {
+    score += 1;
+    document.getElementById('score').innerText = 'Score: ' + score;
+}
 
-draw();
+function gameLoop() {
+    if (gameOver) {
+        alert('Game Over! Your score: ' + score);
+        location.reload();
+        return;
+    }
+    movePlayer();
+    moveObstacles();
+    checkCollision();
+
+    spawnTimer += 1;
+    if (spawnTimer > 60) { // spawn every 1 second approx
+        spawnObstacle();
+        spawnTimer = 0;
+    }
+
+    draw();
+    updateScore();
+
+    requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
 </script>
 </body>
 </html>
